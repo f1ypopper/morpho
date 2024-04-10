@@ -1,9 +1,9 @@
 package main
+
 import (
 	"fmt"
-	"morpho/bencoding"
 )
-func main(){
-	bencoding.Bencoding()
+
+func main() {
 	fmt.Println("hello bitclient")
 }

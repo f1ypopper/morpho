@@ -2,19 +2,24 @@ package bencoding
 
 type BType uint8
 
-const (
-	String BType = iota
-	Integer
-	List
-	Dict
-)
-
-type BValue struct {
-	btype BType
-	value any
+var BTypes = struct {
+	String  BType
+	Integer BType
+	List    BType
+	Dict    BType
+}{
+	String:  0,
+	Integer: 1,
+	List:    2,
+	Dict:    3,
 }
 
-func Encode(value BValue) string {
+type BValue struct {
+	Btype BType
+	Value any
+}
+
+func Encode(bvalue BValue) string {
 	panic("todo")
 }
 
