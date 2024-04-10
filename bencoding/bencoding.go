@@ -1,5 +1,23 @@
 package bencoding
-import "fmt"
-func Bencoding(){
-	fmt.Println("bencoding function implementation")
+
+type BType uint8
+
+const (
+	String BType = iota
+	Integer
+	List
+	Dict
+)
+
+type BValue struct {
+	btype BType
+	value any
+}
+
+func Encode(value BValue) string {
+	panic("todo")
+}
+
+func Decode(source string) (BValue, error) {
+	panic("todo")
 }
