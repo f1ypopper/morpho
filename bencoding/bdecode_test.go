@@ -2,6 +2,7 @@ package bencoding_test
 
 import (
 	"morpho/bencoding"
+	"reflect"
 	"testing"
 )
 
@@ -11,7 +12,6 @@ func TestInteger(t *testing.T) {
 	source := "i34e"
 	expected := bencoding.BValue{bencoding.BTypes.Integer, 34}
 	value, _ := bencoding.Decode(source)
-
 	if value != expected {
 		t.Errorf("Expected %v got %v", expected, value)
 	}
@@ -30,19 +30,18 @@ func TestString(t *testing.T) {
 func TestList(t *testing.T) {
 	source := "l4:spam4:eggse"
 	expected := bencoding.BValue{bencoding.BTypes.List, []bencoding.BValue{{bencoding.BTypes.String, "spam"}, {bencoding.BTypes.String, "eggs"}}}
-	value, _ := bencoding.Decode(source)
-
-	if value != expected {
-		t.Errorf("Expected %v got %v", expected, value)
+	value, err := bencoding.Decode(source)
+	if !reflect.DeepEqual(value, expected) {
+		t.Errorf("Expected %v got %v, Err: %v", expected, value, err)
 	}
 }
 
 func TestDict(t *testing.T) {
 	source := "d3:cow3:moo4:spam4:eggse"
 	expected := bencoding.BValue{bencoding.BTypes.Dict, map[string]bencoding.BValue{"cow": {bencoding.BTypes.String, "moo"}, "spam": {bencoding.BTypes.String, "eggs"}}}
-	value, _ := bencoding.Decode(source)
+	value, err := bencoding.Decode(source)
 
-	if value != expected {
-		t.Errorf("Expected %v got %v", expected, value)
+	if !reflect.DeepEqual(value, expected) {
+		t.Errorf("Expected %v got %v, Err: %v", expected, value, err)
 	}
 }
