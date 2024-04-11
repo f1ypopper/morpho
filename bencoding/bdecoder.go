@@ -6,30 +6,6 @@ import (
 	"strconv"
 )
 
-type BType uint8
-
-var BTypes = struct {
-	String  BType
-	Integer BType
-	List    BType
-	Dict    BType
-}{
-	String:  0,
-	Integer: 1,
-	List:    2,
-	Dict:    3,
-}
-
-type BValue struct {
-	Btype BType
-	Value any
-}
-
-type BDecoder struct {
-	current uint
-	source  string
-}
-
 func (decoder *BDecoder) decode() (BValue, error) {
 	c := decoder.advance()
 	switch c {
@@ -131,10 +107,6 @@ func (decoder *BDecoder) decodeDict() (BValue, error) {
 	//consume the 'e'
 	decoder.advance()
 	return BValue{BTypes.Dict, dict}, nil
-}
-
-func Encode(bvalue BValue) string {
-	panic("todo")
 }
 
 func Decode(source string) (BValue, error) {
