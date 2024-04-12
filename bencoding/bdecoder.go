@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func (decoder *BDecoder) decode() (BValue, error) {
+func (decoder *BDecoder) decode() (any, error) {
 	c := decoder.advance()
 	switch c {
 	case 'i':
@@ -19,7 +19,7 @@ func (decoder *BDecoder) decode() (BValue, error) {
 		if '0' <= c && c <= '9' {
 			return decoder.decodeString()
 		} else {
-			return BValue{}, fmt.Errorf("unknown character %c", c)
+			return nil, fmt.Errorf("unknown character %c", c)
 		}
 	}
 }
@@ -36,34 +36,34 @@ func (decoder *BDecoder) peek() byte {
 func (decoder *BDecoder) atEnd() bool {
 	return decoder.current >= uint(len(decoder.source))
 }
-func (decoder *BDecoder) decodeInt() (BValue, error) {
+func (decoder *BDecoder) decodeInt() (int, error) {
 	start := decoder.current
 	for decoder.peek() != 'e' && !decoder.atEnd() {
 		decoder.advance()
 	}
 
 	if decoder.atEnd() {
-		return BValue{}, errors.New("unterminated integer")
+		return 0, errors.New("unterminated integer")
 	}
 	integer, err := strconv.Atoi(decoder.source[start:decoder.current])
 
 	if err != nil {
-		return BValue{}, err
+		return 0, err
 	}
 
 	//consume the 'e'
 	decoder.advance()
-	return BValue{BTypes.Integer, integer}, nil
+	return integer, nil
 }
 
-func (decoder *BDecoder) decodeString() (BValue, error) {
+func (decoder *BDecoder) decodeString() (string, error) {
 	start := decoder.current - 1
 	for decoder.peek() != ':' {
 		decoder.advance()
 	}
 	slen, err := strconv.ParseUint(decoder.source[start:decoder.current], 10, 64)
 	if err != nil {
-		return BValue{}, err
+		return "", err
 	}
 	//consume the ':'
 	decoder.advance()
@@ -71,45 +71,45 @@ func (decoder *BDecoder) decodeString() (BValue, error) {
 
 	decoder.current += uint(slen)
 
-	return BValue{BTypes.String, str}, nil
+	return str, nil
 }
 
-func (decoder *BDecoder) decodeList() (BValue, error) {
-	var list = make([]BValue, 0, 10)
+func (decoder *BDecoder) decodeList() ([]any, error) {
+	var list = []any{}
 	for decoder.peek() != 'e' {
 		elem, err := decoder.decode()
 		if err != nil {
-			return BValue{}, err
+			return nil, err
 		}
 		list = append(list, elem)
 	}
 	//consume the 'e'
 	decoder.advance()
-	return BValue{BTypes.List, list}, nil
+	return list, nil
 }
 
-func (decoder *BDecoder) decodeDict() (BValue, error) {
-	var dict = make(map[string]BValue)
+func (decoder *BDecoder) decodeDict() (map[string]any, error) {
+	var dict = make(map[string]any)
 	for decoder.peek() != 'e' {
 		key, err := decoder.decode()
 		if err != nil {
-			return BValue{}, err
+			return nil, err
 		}
-		if key.Btype != BTypes.String {
-			return BValue{}, errors.New("expected key to be a string.")
+		if _, ok := key.(string); !ok {
+			return nil, errors.New("expected key to be a string.")
 		}
 		value, err := decoder.decode()
 		if err != nil {
-			return BValue{}, err
+			return nil, err
 		}
-		dict[key.Value.(string)] = value
+		dict[key.(string)] = value
 	}
 	//consume the 'e'
 	decoder.advance()
-	return BValue{BTypes.Dict, dict}, nil
+	return dict, nil
 }
 
-func Decode(source string) (BValue, error) {
+func Decode(source string) (any, error) {
 	decoder := BDecoder{0, source}
 	return decoder.decode()
 }
