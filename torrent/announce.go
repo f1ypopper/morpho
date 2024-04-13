@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"hash"
+	"net/url"
+	"strconv"
 )
 
 func LoadTorrent(bval any) (MetaInfo, error) {
@@ -85,4 +88,21 @@ func (ad *AnnounceData) ToBytes() []byte {
 	binary.Write(buf, endian, uint16(6881))
 	fmt.Println(len(buf.Bytes()))
 	return buf.Bytes()
+}
+
+func (a *AnnounceData) ToHttp(m *MetaInfo, hash hash.Hash) string {
+	params := url.Values{
+		"info_hash":  {string(hash.Sum(nil))},
+		"peer_id":    {a.PeerID},
+		"port":       {strconv.Itoa(int(a.Port))},
+		"uploaded":   {strconv.Itoa(int(a.Uploaded))},
+		"downloaded": {strconv.Itoa(int(a.Downloaded))},
+		"left":       {strconv.Itoa(int(m.Info.Files[0].Length))},
+		"compact":    {strconv.FormatBool(a.Compact)},
+		"event":      {a.Event},
+	}
+	fullUrl := fmt.Sprintf(m.AnnounceURL, params.Encode())
+
+	return fullUrl
+
 }
