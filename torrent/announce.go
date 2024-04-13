@@ -1,5 +1,35 @@
 package torrent
 
+import (
+	"crypto/sha1"
+	"io"
+	"morpho/bencoding"
+)
+
+func createAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
+
+	info := info_dic["info"]
+	encoded_info := bencoding.Encode(info)
+	h := sha1.New()
+	io.WriteString(h, encoded_info)
+
+	returnData := AnnounceData{
+		Left:          metainfo.Info.Files[0].Length,
+		PeerID:        "AAAAAAAAAAAAAAAAAAAA",
+		Port:          6881,
+		Uploaded:      0,
+		Downloaded:    0,
+		Compact:       false,
+		Event:         "started",
+		ConnectionID:  0,
+		Action:        1,
+		TransactionID: 0,
+		InfoHash:      h.Sum(nil),
+	}
+	return returnData
+
+}
+
 func LoadTorrent(bval any) (MetaInfo, error) {
 	m, _ := bval.(map[string]any)
 	metainfo := MetaInfo{}
