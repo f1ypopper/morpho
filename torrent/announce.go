@@ -56,14 +56,14 @@ func loadInfo(bval any) (TorrentInfo, error) {
 			file_dict, _ := v.(map[string]any)
 			file := File{}
 			file.Length = uint(file_dict["length"].(int))
-			file.Path = file_dict["path"].(string)
+			file.Path = file_dict["path"].([]any)
 			files = append(files, file)
 		}
 
 	} else {
 		file := File{}
 		file.Length = uint(m["length"].(int))
-		file.Path = m["name"].(string)
+		file.Path = []any{m["name"].(string)}
 		files = append(files, file)
 	}
 	tinfo.Files = files

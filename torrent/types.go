@@ -13,7 +13,7 @@ type TorrentInfo struct {
 
 type File struct {
 	Length uint
-	Path   string
+	Path   []any
 }
 
 type AnnounceData struct {
