@@ -1,48 +1,65 @@
 package main
 
 import (
-	"crypto/sha1"
+	// "crypto/sha1"
 	"fmt"
-	"io"
+	// "io"
 	"morpho/bencoding"
 	"morpho/torrent"
-	"net/http"
+	"net"
 	"net/url"
 	"os"
-	"strconv"
+	// "strconv"
 )
 
 func main() {
-	data, _ := os.ReadFile("test.torrent")
+	data, _ := os.ReadFile("sample.torrent")
 	source := string(data)
 	bval, _ := bencoding.Decode(source)
 	m := bval.(map[string]any)
-	info_dict := m["info"]
-	encoded_info := bencoding.Encode(info_dict)
-	h := sha1.New()
-	io.WriteString(h, encoded_info)
-	fmt.Printf("%x\n", string(h.Sum(nil)))
-	fmt.Println(url.QueryEscape(string(h.Sum(nil))))
+
 	meta_info, _ := torrent.LoadTorrent(bval)
-	announce, _ := url.Parse(meta_info.Announce)
-	q := announce.Query()
-	q.Set("info_hash", string(h.Sum(nil)))
-	q.Set("peer_id", "AAAAAAAAAAAAAAAAAAAA")
-	q.Set("port", "6881")
-	q.Set("uploaded", "0")
-	q.Set("downloaded", "0")
-	q.Set("left", strconv.Itoa(int(meta_info.Info.Files[0].Length)))
-	q.Set("compact", "0")
-	q.Set("event", "started")
-	announce.RawQuery = q.Encode()
-	res, err := http.Get(announce.String())
+	announce, _ := url.Parse(meta_info.AnnounceURL)
+	fmt.Println(announce.Port)
+	conn, err := net.Dial("udp", "tracker.openbittorrent.com:8013")
+	defer conn.Close()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
+
+	buf := make([]byte, 2048)
+	go func() {
+		for {
+			n, err := conn.Read(buf)
+			if err != nil {
+				fmt.Println(err)
+				if err != net.ErrClosed { // Handle other errors
+					fmt.Println("Error reading data:", err)
+				}
+				conn.Close()
+				break
+			}
+			msg := buf[:n]
+			// fmt.Println(msg)
+			fmt.Println(string(msg))
+
+		}
+
+	}()
+	announceData := torrent.CreateAnnounceData(&meta_info, m)
+	body := announceData.ToBytes()
+
+	w, err := conn.Write(body)
+	if err != nil {
+		fmt.Println("Error sending data:", err)
+		return
+	}
+	fmt.Println(w)
+
 	tracker, _ := bencoding.Decode(string(body))
-	tm := tracker.(map[string]any)
-	s := tm["peers"]
-	fmt.Println([]byte(s.(string)))
+	fmt.Println(tracker)
+	// tm := tracker.(map[string]any)
+	// s := tm["peers"]
+	// fmt.Println([]byte(s.(string)))
+	// fmt.Println(string(s.(string)))
 }
