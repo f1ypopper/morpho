@@ -1,8 +1,8 @@
 package torrent
 
 type MetaInfo struct {
-	Announce string
-	Info     TorrentInfo
+	AnnounceURL string
+	Info        TorrentInfo
 }
 
 type TorrentInfo struct {
@@ -14,4 +14,18 @@ type TorrentInfo struct {
 type File struct {
 	Length uint
 	Path   string
+}
+
+type AnnounceData struct {
+	InfoHash      []byte
+	PeerID        string
+	Port          uint
+	Uploaded      uint
+	Downloaded    uint
+	Left          uint
+	Compact       bool
+	Event         string
+	ConnectionID  uint64
+	Action        uint32
+	TransactionID uint32
 }
