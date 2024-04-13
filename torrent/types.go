@@ -19,10 +19,10 @@ type File struct {
 type AnnounceData struct {
 	InfoHash      []byte
 	PeerID        string
-	Port          uint
-	Uploaded      uint
-	Downloaded    uint
-	Left          uint
+	Port          uint16
+	Uploaded      uint64
+	Downloaded    uint64
+	Left          uint64
 	Compact       bool
 	Event         string
 	ConnectionID  uint64
