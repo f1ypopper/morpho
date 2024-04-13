@@ -5,12 +5,12 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
-	// "hash"
 	"io"
 	"morpho/bencoding"
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 )
 
 func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
@@ -19,12 +19,12 @@ func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceDat
 	encoded_info := bencoding.Encode(info)
 	h := sha1.New()
 	io.WriteString(h, encoded_info)
-	urlInfo, _ := url.Parse(metainfo.AnnounceURL)
-	portValue, _ := strconv.Atoi(urlInfo.Port())
+	// urlInfo, _ := url.Parse(metainfo.AnnounceURL)
+	// portValue, _ := strconv.Atoi(urlInfo.Port())
 	returnData := AnnounceData{
 		Left:          uint64(metainfo.Info.Files[0].Length),
 		PeerID:        "AAAAAAAAAAAAAAAAAAAA",
-		Port:          uint16(portValue),
+		Port:          80,
 		Uploaded:      0,
 		Downloaded:    0,
 		Compact:       false,
@@ -42,6 +42,7 @@ func LoadTorrent(bval any) (MetaInfo, error) {
 	m, _ := bval.(map[string]any)
 	metainfo := MetaInfo{}
 	metainfo.AnnounceURL = m["announce"].(string)
+	metainfo.AnnounceList = ManageAnnounceList(m["announce-list"].([]interface{}))
 	metainfo.Info, _ = loadInfo(m["info"])
 	return metainfo, nil
 }
@@ -58,14 +59,14 @@ func loadInfo(bval any) (TorrentInfo, error) {
 			file_dict, _ := v.(map[string]any)
 			file := File{}
 			file.Length = uint(file_dict["length"].(int))
-			file.Path = file_dict["path"].(string)
+			file.Path = []any{m["name"].(string)}
 			files = append(files, file)
 		}
 
 	} else {
 		file := File{}
 		file.Length = uint(m["length"].(int))
-		file.Path = m["name"].(string)
+		file.Path = []any{m["name"].(string)}
 		files = append(files, file)
 	}
 	tinfo.Files = files
@@ -115,30 +116,34 @@ func (ad *AnnounceData) ToBytes() []byte {
 	binary.Write(buf, endian, uint32(0)) // we don't store a key
 	binary.Write(buf, endian, int32(-1))
 	binary.Write(buf, endian, uint16(6881))
-	fmt.Println(len(buf.Bytes()))
+	// fmt.Println(len(buf.Bytes()))
 	return buf.Bytes()
 }
 
-func (a *AnnounceData) ToHttp(m *MetaInfo) ([]byte, error) {
+func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) {
 	client := &http.Client{}
 	params := url.Values{
 		"info_hash":  {string(a.InfoHash)},
 		"peer_id":    {a.PeerID},
-		"port":       {strconv.Itoa(int(a.Port))},
+		"port":       {announceUrl.Port()},
 		"uploaded":   {strconv.Itoa(int(a.Uploaded))},
 		"downloaded": {strconv.Itoa(int(a.Downloaded))},
 		"left":       {strconv.Itoa(int(m.Info.Files[0].Length))},
-		"compact":    {strconv.FormatBool(a.Compact)},
+		"compact":    { /*strconv.FormatBool(a.Compact)*/ "0"},
 		"event":      {a.Event},
 	}
-	fullUrl := m.AnnounceURL + "?" + params.Encode()
+	// fullUrl := m.AnnounceURL + "?" + params.Encode()
+
+	host := announceUrl.Host
+	scheme := announceUrl.Scheme
+	path := announceUrl.Path
+	fullUrl := scheme + "://" + host + path + "?" + params.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, fullUrl, nil)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return nil, err
 	}
-	fmt.Println(fullUrl)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -147,7 +152,95 @@ func (a *AnnounceData) ToHttp(m *MetaInfo) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Println(string(body))
+	if body == nil {
+		fmt.Println("Error in the body")
+	}
 	return body, nil
+}
 
+func ManageAnnounceList(aList []interface{}) []url.URL {
+	var list []url.URL
+
+	for _, v := range aList {
+		// fmt.Printf("%T", v)
+		if firstURL, ok := v.([]interface{}); ok {
+			announce, _ := url.Parse(firstURL[0].(string))
+			if announce.Scheme != "udp" {
+				list = append(list, *announce)
+
+			}
+
+		} else {
+			fmt.Println("Unexpected type in tracker list")
+		}
+
+	}
+	fmt.Println("This is the length of the list ", list)
+	return list
+
+	//
+}
+
+func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
+	var wg sync.WaitGroup
+
+	for i, v := range m.AnnounceList {
+		wg.Add(1)
+		go func(aUrl *MetaInfo) ([]byte, error) {
+			defer wg.Done()
+			// fmt.Println(v)
+			body, err := aData.ToHttp(m, v)
+			if err != nil {
+				copy(m.AnnounceList[i:], m.AnnounceList[i+1:])
+
+				m.AnnounceList = m.AnnounceList[:len(m.AnnounceList)-1]
+				fmt.Println("this is announce list ", m.AnnounceList)
+				fmt.Println("The error is ", err)
+				return nil, err
+
+			}
+			// fmt.Println(string(body))
+			tracker, _ := bencoding.Decode(string(body))
+			fmt.Println(tracker)
+			if tracker != nil {
+				if _, ok := tracker.(map[string]interface{}); !ok {
+
+					FromHTTP(tracker.(map[string]interface{}))
+				}
+
+			}
+			return body, nil
+
+			// fmt.Println("pinging ", aUrl.Host())
+
+		}(m)
+
+	}
+	wg.Wait()
+	return nil
+}
+
+func FromHTTP(tm map[string]interface{}) ResponseData {
+
+	var p []Peers
+
+	for _, v := range tm["peers"].([]map[string]interface{}) { // [interface{}, intrface{}, interface{}]
+		q := Peers{
+			IP:     v["ip"].(string),
+			PeerID: v["peer id"].(string),
+			Port:   v["port"].(uint16),
+		}
+		p = append(p, q)
+	}
+
+	returnData := ResponseData{
+		Complete:    tm["complete"].(uint),
+		Incomplete:  tm["incomplete"].(uint),
+		Interval:    tm["interval"].(uint),
+		MinInterval: tm["min interval"].(uint),
+		Peers:       p,
+	}
+	fmt.Println("this is the return  data   ", returnData)
+
+	return returnData
 }

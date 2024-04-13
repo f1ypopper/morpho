@@ -6,60 +6,67 @@ import (
 	// "io"
 	"morpho/bencoding"
 	"morpho/torrent"
-	"net"
-	"net/url"
+	// "net"
 	"os"
 	// "strconv"
 )
 
 func main() {
-	data, _ := os.ReadFile("sample.torrent")
+	data, _ := os.ReadFile("another.torrent")
 	source := string(data)
 	bval, _ := bencoding.Decode(source)
 	m := bval.(map[string]any)
+	// fmt.Println("announce list ", m["announce-list"])
 
 	meta_info, _ := torrent.LoadTorrent(bval)
-	announce, _ := url.Parse(meta_info.AnnounceURL)
-	fmt.Println(announce.Port)
-	conn, err := net.Dial("udp", "tracker.openbittorrent.com:8013")
-	defer conn.Close()
-	if err != nil {
-		fmt.Println(err)
-	}
+	// fmt.Println(meta_info.AnnounceList[0])
 
-	buf := make([]byte, 2048)
-	go func() {
-		for {
-			n, err := conn.Read(buf)
-			if err != nil {
-				fmt.Println(err)
-				if err != net.ErrClosed { // Handle other errors
-					fmt.Println("Error reading data:", err)
-				}
-				conn.Close()
-				break
-			}
-			msg := buf[:n]
-			// fmt.Println(msg)
-			fmt.Println(string(msg))
+	// conn, err := net.Dial("udp", "opentor.net:696913")
+	// defer conn.Close()
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
 
-		}
+	// fmt.Println(m["announce-list"])
 
-	}()
+	// buf := make([]byte, 2048)
+	// // go func() {
+
+	// // }()
 	announceData := torrent.CreateAnnounceData(&meta_info, m)
-	body := announceData.ToBytes()
+	// body := announceData.ToBytes()
+	// bod, _ := announceData.ToHttp(&meta_info, *announce)
+	// fmt.Println(string(bod))
 
-	w, err := conn.Write(body)
-	if err != nil {
-		fmt.Println("Error sending data:", err)
-		return
-	}
-	fmt.Println(w)
+	// w, err := conn.Write(body)
+	// if err != nil {
+	// 	fmt.Println("Error sending data:", err)
+	// 	return
+	// }
+	// fmt.Println(w)
+	// // for {
+	// n, err := conn.Read(buf)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	if err != net.ErrClosed {
+	// 		fmt.Println("Error reading data:", err)
+	// 	}
+	// 	conn.Close()
+	// 	// break
+	// }
+	// msg := buf[:n]
+	// fmt.Println(string(msg))
 
-	tracker, _ := bencoding.Decode(string(body))
-	fmt.Println(tracker)
-	// tm := tracker.(map[string]any)
-	// s := tm["peers"]
-	// fmt.Println([]byte(s.(string)))
-	// fmt.Println(string(s.(string)))
+	// }
+	body := announceData.ManageAnnounceTracker(&meta_info)
+	// torrent.FromHTTP(body)
+	fmt.Println("--------this is main---------", body)
 }
+
+// 	tracker, _ := bencoding.Decode(string(body))
+
+// 	tm := tracker.(map[string]any)
+// 	s := tm["peers"]
+// 	// fmt.Println([]byte(s.(string)))
+// 	fmt.Println(s)
+// }

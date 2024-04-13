@@ -1,8 +1,11 @@
 package torrent
 
+import "net/url"
+
 type MetaInfo struct {
-	AnnounceURL string
-	Info        TorrentInfo
+	AnnounceURL  string
+	AnnounceList []url.URL
+	Info         TorrentInfo
 }
 
 type TorrentInfo struct {
@@ -13,7 +16,21 @@ type TorrentInfo struct {
 
 type File struct {
 	Length uint
-	Path   string
+	Path   []any
+}
+
+type Peers struct {
+	IP     string
+	PeerID string
+	Port   uint16
+}
+
+type ResponseData struct {
+	Complete    uint
+	Incomplete  uint
+	Interval    uint
+	MinInterval uint
+	Peers       []Peers
 }
 
 type AnnounceData struct {
