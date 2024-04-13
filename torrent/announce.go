@@ -201,9 +201,10 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 			}
 			// fmt.Println(string(body))
 			tracker, _ := bencoding.Decode(string(body))
-			fmt.Println(tracker)
 			if tracker != nil {
-				if _, ok := tracker.(map[string]interface{}); !ok {
+				fmt.Printf("bencoded tracker is %T", tracker)
+				if _, ok := tracker.(map[string]interface{}); ok {
+					fmt.Println(ok)
 
 					FromHTTP(tracker.(map[string]interface{}))
 				}
@@ -224,20 +225,25 @@ func FromHTTP(tm map[string]interface{}) ResponseData {
 
 	var p []Peers
 
-	for _, v := range tm["peers"].([]map[string]interface{}) { // [interface{}, intrface{}, interface{}]
-		q := Peers{
-			IP:     v["ip"].(string),
-			PeerID: v["peer id"].(string),
-			Port:   v["port"].(uint16),
+	for _, v := range tm["peers"].([]interface{}) { // [interface{}, intrface{}, interface{}]
+		if peer, ok := v.(map[string]interface{}); ok {
+
+			q := Peers{
+				IP:     peer["ip"].(string),
+				PeerID: peer["peer id"].(string),
+				Port:   uint16(peer["port"].(int)),
+			}
+			p = append(p, q)
+
 		}
-		p = append(p, q)
 	}
+	fmt.Printf("%T is type of complete    ", tm["complete"])
 
 	returnData := ResponseData{
-		Complete:    tm["complete"].(uint),
-		Incomplete:  tm["incomplete"].(uint),
-		Interval:    tm["interval"].(uint),
-		MinInterval: tm["min interval"].(uint),
+		Complete:    uint(tm["complete"].(int)),
+		Incomplete:  uint(tm["incomplete"].(int)),
+		Interval:    uint(tm["interval"].(int)),
+		MinInterval: uint(tm["min interval"].(int)),
 		Peers:       p,
 	}
 	fmt.Println("this is the return  data   ", returnData)
