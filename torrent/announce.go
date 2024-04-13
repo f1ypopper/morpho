@@ -3,7 +3,7 @@ package torrent
 func LoadTorrent(bval any) (MetaInfo, error) {
 	m, _ := bval.(map[string]any)
 	metainfo := MetaInfo{}
-	metainfo.Announce = m["announce"].(string)
+	metainfo.AnnounceURL = m["announce"].(string)
 	metainfo.Info, _ = loadInfo(m["info"])
 	return metainfo, nil
 }

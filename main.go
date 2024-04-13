@@ -24,7 +24,7 @@ func main() {
 	fmt.Printf("%x\n", string(h.Sum(nil)))
 	fmt.Println(url.QueryEscape(string(h.Sum(nil))))
 	meta_info, _ := torrent.LoadTorrent(bval)
-	announce, _ := url.Parse(meta_info.Announce)
+	announce, _ := url.Parse(meta_info.AnnounceURL)
 	q := announce.Query()
 	q.Set("info_hash", string(h.Sum(nil)))
 	q.Set("peer_id", "AAAAAAAAAAAAAAAAAAAA")
