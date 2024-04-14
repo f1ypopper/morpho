@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"time"
 )
 
 func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
@@ -115,7 +116,6 @@ func (ad *AnnounceData) ToBytes() []byte {
 	binary.Write(buf, endian, uint32(0)) // we don't store a key
 	binary.Write(buf, endian, int32(-1))
 	binary.Write(buf, endian, uint16(6881))
-	// fmt.Println(len(buf.Bytes()))
 	return buf.Bytes()
 }
 
@@ -171,71 +171,60 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 		}
 
 	}
-	fmt.Println("This is the length of the list ", list)
 	return list
 }
 
-func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
+func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *[]Peer) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var peerList []Peers
-
-	for i, v := range m.AnnounceList {
-		wg.Add(1)
-		go func(aUrl *MetaInfo) ([]byte, error) {
-			defer wg.Done()
-			body, err := aData.ToHttp(m, v)
-			if err != nil {
-				copy(m.AnnounceList[i:], m.AnnounceList[i+1:])
-
-				m.AnnounceList = m.AnnounceList[:len(m.AnnounceList)-1]
-				fmt.Println("this is announce list ", m.AnnounceList)
-				fmt.Println("The error is ", err)
-				return nil, err
-			}
-			tracker, _ := bencoding.Decode(string(body))
-			if tracker != nil {
-				fmt.Printf("bencoded tracker is %T", tracker)
-				if _, ok := tracker.(map[string]interface{}); ok {
-					fmt.Println(ok)
-
-					respData := FromHTTP(tracker.(map[string]interface{}))
-					fmt.Println("Ip addres is            :", respData.Peers)
+	for {
+		for _, v := range m.AnnounceList {
+			wg.Add(1)
+			go func(aUrl *MetaInfo) ([]byte, error) {
+				defer wg.Done()
+				body, err := aData.ToHttp(m, v)
+				if err != nil {
+					return nil, err
+				}
+				t, _ := bencoding.Decode(string(body))
+				if tracker, ok := t.(map[string]interface{}); ok {
+					respData := FromHTTP(tracker)
 					mu.Lock()
-					peerList = append(peerList, respData.Peers[:]...)
-					fmt.Println("peer list       ", peerList)
+					*peerList = append(*peerList, respData.Peer[:]...)
 					mu.Unlock()
+					fmt.Println("PEER LIST : ", peerList)
+					time.Sleep(time.Duration(respData.Interval) * time.Second)
 				}
 
-			}
-			return body, nil
+				return body, nil
 
-		}(m)
+			}(m)
 
+		}
+		wg.Wait()
 	}
-	wg.Wait()
-	fmt.Println("Peer list is      ", peerList)
-	return nil
 }
 
 func FromHTTP(tm map[string]interface{}) *ResponseData {
-	var p []Peers
+	var p []Peer
 	switch val := tm["peers"].(type) {
 	case string:
 		bytesSlice := []byte(val)
-		if len(bytesSlice) > 0 {
-			q := Peers{
-				IP:   net.IP(bytesSlice[:4]),
-				Port: uint16(binary.BigEndian.Uint16(bytesSlice[4:])),
-			}
-			p = append(p, q)
+		for offset := 0; offset < len(bytesSlice); offset += 6 {
+			b := bytesSlice[offset : offset+6]
+			if len(bytesSlice) > 0 {
+				q := Peer{
+					IP:   net.IP(b[:4]),
+					Port: uint16(binary.BigEndian.Uint16(b[4:])),
+				}
+				p = append(p, q)
 
+			}
 		}
 	case []interface{}:
 		for _, v := range val { // [interface{}, intrface{}, interface{}]
 			if peer, ok := v.(map[string]interface{}); ok {
-
-				q := Peers{
+				q := Peer{
 					IP:     net.ParseIP(peer["ip"].(string)),
 					PeerID: peer["peer id"].(string),
 					Port:   uint16(peer["port"].(int)),
@@ -251,7 +240,7 @@ func FromHTTP(tm map[string]interface{}) *ResponseData {
 		Incomplete:  uint(tm["incomplete"].(int)),
 		Interval:    uint(tm["interval"].(int)),
 		MinInterval: uint(tm["min interval"].(int)),
-		Peers:       p,
+		Peer:        p,
 	}
 	return returnData
 }

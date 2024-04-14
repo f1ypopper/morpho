@@ -22,7 +22,7 @@ type File struct {
 	Path   []any
 }
 
-type Peers struct {
+type Peer struct {
 	IP     net.IP
 	PeerID string
 	Port   uint16
@@ -33,7 +33,7 @@ type ResponseData struct {
 	Incomplete  uint
 	Interval    uint
 	MinInterval uint
-	Peers       []Peers
+	Peer        []Peer
 }
 
 type AnnounceData struct {
