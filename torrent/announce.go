@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"morpho/bencoding"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
+	// "time"
 )
 
 func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
@@ -155,6 +157,7 @@ func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) 
 	if body == nil {
 		fmt.Println("Error in the body")
 	}
+	fmt.Println("-----------body-----------", string(body))
 	return body, nil
 }
 
@@ -206,7 +209,27 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 				if _, ok := tracker.(map[string]interface{}); ok {
 					fmt.Println(ok)
 
-					FromHTTP(tracker.(map[string]interface{}))
+					respData := FromHTTP(tracker.(map[string]interface{}))
+					fmt.Println("Ip addres is            :", respData.Peers)
+					// peer := respData.Peers[0].IP
+					// conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
+					// if err != nil {
+					// 	return nil, err
+					// }
+					// buf := make([]byte, 2048)
+
+					// n, err := conn.Read(buf)
+					// if err != nil {
+					// 	fmt.Println(err)
+					// 	if err != net.ErrClosed {
+					// 		fmt.Println("Error reading data:", err)
+					// 	}
+					// 	conn.Close()
+					// 	// break
+					// }
+					// msg := buf[:n]
+					// fmt.Println("message is ...................", msg)
+
 				}
 
 			}
@@ -221,32 +244,46 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 	return nil
 }
 
-func FromHTTP(tm map[string]interface{}) ResponseData {
+func FromHTTP(tm map[string]interface{}) *ResponseData {
 
 	var p []Peers
-
-	for _, v := range tm["peers"].([]interface{}) { // [interface{}, intrface{}, interface{}]
-		if peer, ok := v.(map[string]interface{}); ok {
-
+	switch val := tm["peers"].(type) {
+	case string:
+		bytesSlice := []byte(val)
+		if len(bytesSlice) > 0 {
 			q := Peers{
-				IP:     peer["ip"].(string),
-				PeerID: peer["peer id"].(string),
-				Port:   uint16(peer["port"].(int)),
+				IP:   net.IP(bytesSlice[:4]),
+				Port: uint16(binary.BigEndian.Uint16(bytesSlice[4:])),
 			}
 			p = append(p, q)
+			// fmt.Println("bytes slice is                 ", binary.BigEndian.Uint16(bytesSlice[4:]))
 
 		}
+	case []interface{}:
+		for _, v := range val { // [interface{}, intrface{}, interface{}]
+			if peer, ok := v.(map[string]interface{}); ok {
+
+				q := Peers{
+					IP:     net.ParseIP(peer["ip"].(string)),
+					PeerID: peer["peer id"].(string),
+					Port:   uint16(peer["port"].(int)),
+				}
+				p = append(p, q)
+
+			}
+		}
+
 	}
+
 	fmt.Printf("%T is type of complete    ", tm["complete"])
 
-	returnData := ResponseData{
+	returnData := &ResponseData{
 		Complete:    uint(tm["complete"].(int)),
 		Incomplete:  uint(tm["incomplete"].(int)),
 		Interval:    uint(tm["interval"].(int)),
 		MinInterval: uint(tm["min interval"].(int)),
 		Peers:       p,
 	}
-	fmt.Println("this is the return  data   ", returnData)
 
 	return returnData
 }

@@ -1,6 +1,9 @@
 package torrent
 
-import "net/url"
+import (
+	"net"
+	"net/url"
+)
 
 type MetaInfo struct {
 	AnnounceURL  string
@@ -20,7 +23,7 @@ type File struct {
 }
 
 type Peers struct {
-	IP     string
+	IP     net.IP
 	PeerID string
 	Port   uint16
 }
