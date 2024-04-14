@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"morpho/bencoding"
@@ -17,10 +18,10 @@ import (
 
 func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
 
-	info := info_dic["info"]
-	encoded_info := bencoding.Encode(info)
+	info := info_dic["info"].(map[string]any)
+	raw_info := info["raw"].(string)
 	h := sha1.New()
-	io.WriteString(h, encoded_info)
+	io.WriteString(h, raw_info)
 	returnData := AnnounceData{
 		Left:          uint64(metainfo.Info.Files[0].Length),
 		PeerID:        "AAAAAAAAAAAAAAAAAAAA",
@@ -188,11 +189,16 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *map[stri
 				}
 				t, _ := bencoding.Decode(string(body))
 				if tracker, ok := t.(map[string]interface{}); ok {
+					fmt.Println("TRACKER ", tracker)
+					if err, ok := tracker["failure reason"]; ok {
+						return nil, errors.New(err.(string))
+					}
 					respData := FromHTTP(tracker)
 					mu.Lock()
 					for _, p := range respData.Peer {
 						(*peerList)[p.IP.To4().String()] = p.Port
 					}
+					fmt.Println(peerList)
 					mu.Unlock()
 					time.Sleep(time.Duration(respData.Interval) * time.Second)
 				}

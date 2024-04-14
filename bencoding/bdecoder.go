@@ -89,6 +89,7 @@ func (decoder *BDecoder) decodeList() ([]any, error) {
 }
 
 func (decoder *BDecoder) decodeDict() (map[string]any, error) {
+	start := decoder.current - 1
 	var dict = make(map[string]any)
 	for decoder.peek() != 'e' {
 		key, err := decoder.decode()
@@ -106,6 +107,7 @@ func (decoder *BDecoder) decodeDict() (map[string]any, error) {
 	}
 	//consume the 'e'
 	decoder.advance()
+	dict["raw"] = decoder.source[start:decoder.current]
 	return dict, nil
 }
 
