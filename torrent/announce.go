@@ -174,7 +174,7 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 	return list
 }
 
-func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *[]Peer) {
+func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *map[string]uint16) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for {
@@ -190,12 +190,12 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *[]Peer) 
 				if tracker, ok := t.(map[string]interface{}); ok {
 					respData := FromHTTP(tracker)
 					mu.Lock()
-					*peerList = append(*peerList, respData.Peer[:]...)
+					for _, p := range respData.Peer {
+						(*peerList)[p.IP.To4().String()] = p.Port
+					}
 					mu.Unlock()
-					fmt.Println("PEER LIST : ", peerList)
 					time.Sleep(time.Duration(respData.Interval) * time.Second)
 				}
-
 				return body, nil
 
 			}(m)

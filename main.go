@@ -13,6 +13,6 @@ func main() {
 	m := bval.(map[string]any)
 	meta_info, _ := torrent.LoadTorrent(bval)
 	announceData := torrent.CreateAnnounceData(&meta_info, m)
-	var peerList = []torrent.Peer{}
+	var peerList = map[string]uint16{}
 	announceData.ManageAnnounceTracker(&meta_info, &peerList)
 }
