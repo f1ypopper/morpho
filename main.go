@@ -2,11 +2,13 @@ package main
 
 import (
 	// "crypto/sha1"
+
 	"fmt"
+
 	// "io"
 	"morpho/bencoding"
 	"morpho/torrent"
-	// "net"
+
 	"os"
 	// "strconv"
 )
@@ -57,10 +59,25 @@ func main() {
 	// msg := buf[:n]
 	// fmt.Println(string(msg))
 
+	//info sha hash
+	// info := info_dic["info"]
+	// encoded_info := bencoding.Encode(info)
+	// h := sha1.New()
+	// io.WriteString(h, encoded_info)
+
 	// }
-	body := announceData.ManageAnnounceTracker(&meta_info)
+	dataChannel := make(chan interface{})
+
+	body := announceData.ManageAnnounceTracker(&meta_info, dataChannel)
 	// torrent.FromHTTP(body)
-	fmt.Println("--------this is main---------", body)
+	fmt.Println("--------this is main---------", body, "---------------------------------")
+	go torrent.ManageResponceData(dataChannel)
+
+	// for i, v := range m {
+	// 	fmt.Println(i, v)
+	// 	//
+	// }
+
 }
 
 // 	tracker, _ := bencoding.Decode(string(body))

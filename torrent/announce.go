@@ -73,6 +73,38 @@ func loadInfo(bval any) (TorrentInfo, error) {
 	return tinfo, nil
 }
 
+func (rd *ResponseData) PeerHandshake(info_dic map[string]any) []byte {
+	/*
+		<pstrlen><pstr><reserved><info_hash><peer_id>
+			It is (49+len(pstr)) bytes long.
+
+		pstrlen: 	string length of <pstr>, as a single raw byte
+		pstr: 		string identifier of the protocol
+		reserved: 	eight (8) reserved bytes. All current implementations use all zeroes.
+		info_hash: 	20-byte SHA1 hash of the info key in the metainfo file.
+		peer_id: 	20-byte string used as a unique ID for the client
+	*/
+
+	// info hash
+	info := info_dic["info"]
+	encoded_info := bencoding.Encode(info)
+	h := sha1.New()
+	io.WriteString(h, encoded_info)
+
+	endian := binary.BigEndian
+	buf := new(bytes.Buffer)
+	binary.Write(buf, endian, 19)
+	binary.Write(buf, endian, "BitTorrent protocol")
+	binary.Write(buf, endian, int8(0))
+	binary.Write(buf, endian, []byte(h.Sum(nil)))
+
+	for _, peer := range rd.Peers {
+		binary.Write(buf, endian, []byte(peer.PeerID))
+		return buf.Bytes()
+	}
+	return nil
+}
+
 func (ad *AnnounceData) ToBytes() []byte {
 	/*
 	   	Offset  Size    Name    Value
@@ -147,7 +179,7 @@ func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		// fmt.Println("Error sending request:", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -181,7 +213,8 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 	//
 }
 
-func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
+// func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, dataChannel chan<- interface{} []byte {
+func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, dataChannel chan<- interface{}) []byte {
 	var wg sync.WaitGroup
 
 	for i, v := range m.AnnounceList {
@@ -202,13 +235,13 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 			// fmt.Println(string(body))
 			tracker, _ := bencoding.Decode(string(body))
 			if tracker != nil {
-				fmt.Printf("bencoded tracker is %T", tracker)
+				// fmt.Printf("____bencoded tracker is %T : %v ____\n", tracker, tracker)
 				if _, ok := tracker.(map[string]interface{}); ok {
 					fmt.Println(ok)
 
 					FromHTTP(tracker.(map[string]interface{}))
 				}
-
+				dataChannel <- tracker
 			}
 			return body, nil
 
@@ -224,20 +257,23 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 func FromHTTP(tm map[string]interface{}) ResponseData {
 
 	var p []Peers
+	if _, ok := tm["peers"]; ok {
+		for _, v := range tm["peers"].([]interface{}) { // [interface{}, intrface{}, interface{}]
+			if peer, ok := v.(map[string]interface{}); ok {
 
-	for _, v := range tm["peers"].([]interface{}) { // [interface{}, intrface{}, interface{}]
-		if peer, ok := v.(map[string]interface{}); ok {
+				q := Peers{
+					IP:     peer["ip"].(string),
+					PeerID: peer["peer id"].(string),
+					Port:   uint16(peer["port"].(int)),
+				}
+				p = append(p, q)
 
-			q := Peers{
-				IP:     peer["ip"].(string),
-				PeerID: peer["peer id"].(string),
-				Port:   uint16(peer["port"].(int)),
 			}
-			p = append(p, q)
-
 		}
+	} else {
+		fmt.Printf("peers - interface {} is nil.\n ")
 	}
-	fmt.Printf("%T is type of complete    ", tm["complete"])
+	fmt.Printf("%T is type of complete    \n", tm["complete"])
 
 	returnData := ResponseData{
 		Complete:    uint(tm["complete"].(int)),
@@ -246,7 +282,14 @@ func FromHTTP(tm map[string]interface{}) ResponseData {
 		MinInterval: uint(tm["min interval"].(int)),
 		Peers:       p,
 	}
-	fmt.Println("this is the return  data   ", returnData)
+	fmt.Printf("this is the return  data - %T : %v  \n", returnData, returnData)
 
 	return returnData
+}
+
+func ManageResponceData(dataChannel <-chan interface{}) {
+
+	responseData := <-dataChannel
+
+	fmt.Println("responce data throucg channel", responseData)
 }
