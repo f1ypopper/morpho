@@ -10,10 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"sync"
-	// "time"
 )
 
 func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceData {
@@ -22,8 +20,6 @@ func CreateAnnounceData(metainfo *MetaInfo, info_dic map[string]any) AnnounceDat
 	encoded_info := bencoding.Encode(info)
 	h := sha1.New()
 	io.WriteString(h, encoded_info)
-	// urlInfo, _ := url.Parse(metainfo.AnnounceURL)
-	// portValue, _ := strconv.Atoi(urlInfo.Port())
 	returnData := AnnounceData{
 		Left:          uint64(metainfo.Info.Files[0].Length),
 		PeerID:        "AAAAAAAAAAAAAAAAAAAA",
@@ -135,8 +131,6 @@ func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) 
 		"compact":    { /*strconv.FormatBool(a.Compact)*/ "1"},
 		"event":      {a.Event},
 	}
-	// fullUrl := m.AnnounceURL + "?" + params.Encode()
-
 	host := announceUrl.Host
 	scheme := announceUrl.Scheme
 	path := announceUrl.Path
@@ -158,7 +152,6 @@ func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) 
 	if body == nil {
 		fmt.Println("Error in the body")
 	}
-	fmt.Println("-----------body-----------", string(body))
 	return body, nil
 }
 
@@ -166,7 +159,6 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 	var list []url.URL
 
 	for _, v := range aList {
-		// fmt.Printf("%T", v)
 		if firstURL, ok := v.([]interface{}); ok {
 			announce, _ := url.Parse(firstURL[0].(string))
 			if announce.Scheme != "udp" {
@@ -181,8 +173,6 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 	}
 	fmt.Println("This is the length of the list ", list)
 	return list
-
-	//
 }
 
 func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
@@ -194,7 +184,6 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 		wg.Add(1)
 		go func(aUrl *MetaInfo) ([]byte, error) {
 			defer wg.Done()
-			// fmt.Println(v)
 			body, err := aData.ToHttp(m, v)
 			if err != nil {
 				copy(m.AnnounceList[i:], m.AnnounceList[i+1:])
@@ -216,24 +205,6 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 					peerList = append(peerList, respData.Peers[:]...)
 					fmt.Println("peer list       ", peerList)
 					mu.Unlock()
-					// peer := respData.Peers[0].IP
-					// conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
-					// if err != nil {
-					// 	return nil, err
-					// }
-					// buf := make([]byte, 2048)
-
-					// n, err := conn.Read(buf)
-					// if err != nil {
-					// 	fmt.Println(err)
-					// 	if err != net.ErrClosed {
-					// 		fmt.Println("Error reading data:", err)
-					// 	}
-					// 	conn.Close()
-					// 	// break
-					// }
-					// msg := buf[:n]
-					// fmt.Println("message is ...................", msg)
 				}
 
 			}
@@ -248,7 +219,6 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 }
 
 func FromHTTP(tm map[string]interface{}) *ResponseData {
-
 	var p []Peers
 	switch val := tm["peers"].(type) {
 	case string:
