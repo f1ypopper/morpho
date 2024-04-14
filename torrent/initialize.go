@@ -32,7 +32,11 @@ func LoadTorrent(bval any) (MetaInfo, error) {
 	m, _ := bval.(map[string]any)
 	metainfo := MetaInfo{}
 	metainfo.AnnounceURL = m["announce"].(string)
-	metainfo.AnnounceList = ManageAnnounceList(m["announce-list"].([]interface{}))
+	if alist, ok := m["announce-list"]; ok {
+		metainfo.AnnounceList = ManageAnnounceList(alist.([]interface{}))
+	} else {
+		metainfo.AnnounceList = ManageAnnounceList([]any{[]any{m["announce"].(string)}})
+	}
 	metainfo.Info, _ = loadInfo(m["info"])
 	return metainfo, nil
 }
