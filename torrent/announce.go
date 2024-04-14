@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	// "time"
@@ -131,7 +132,7 @@ func (a *AnnounceData) ToHttp(m *MetaInfo, announceUrl url.URL) ([]byte, error) 
 		"uploaded":   {strconv.Itoa(int(a.Uploaded))},
 		"downloaded": {strconv.Itoa(int(a.Downloaded))},
 		"left":       {strconv.Itoa(int(m.Info.Files[0].Length))},
-		"compact":    { /*strconv.FormatBool(a.Compact)*/ "0"},
+		"compact":    { /*strconv.FormatBool(a.Compact)*/ "1"},
 		"event":      {a.Event},
 	}
 	// fullUrl := m.AnnounceURL + "?" + params.Encode()
@@ -186,6 +187,8 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 
 func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var peerList []Peers
 
 	for i, v := range m.AnnounceList {
 		wg.Add(1)
@@ -200,9 +203,7 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 				fmt.Println("this is announce list ", m.AnnounceList)
 				fmt.Println("The error is ", err)
 				return nil, err
-
 			}
-			// fmt.Println(string(body))
 			tracker, _ := bencoding.Decode(string(body))
 			if tracker != nil {
 				fmt.Printf("bencoded tracker is %T", tracker)
@@ -211,6 +212,10 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 
 					respData := FromHTTP(tracker.(map[string]interface{}))
 					fmt.Println("Ip addres is            :", respData.Peers)
+					mu.Lock()
+					peerList = append(peerList, respData.Peers[:]...)
+					fmt.Println("peer list       ", peerList)
+					mu.Unlock()
 					// peer := respData.Peers[0].IP
 					// conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
 					// if err != nil {
@@ -229,18 +234,16 @@ func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo) []byte {
 					// }
 					// msg := buf[:n]
 					// fmt.Println("message is ...................", msg)
-
 				}
 
 			}
 			return body, nil
 
-			// fmt.Println("pinging ", aUrl.Host())
-
 		}(m)
 
 	}
 	wg.Wait()
+	fmt.Println("Peer list is      ", peerList)
 	return nil
 }
 
@@ -256,7 +259,6 @@ func FromHTTP(tm map[string]interface{}) *ResponseData {
 				Port: uint16(binary.BigEndian.Uint16(bytesSlice[4:])),
 			}
 			p = append(p, q)
-			// fmt.Println("bytes slice is                 ", binary.BigEndian.Uint16(bytesSlice[4:]))
 
 		}
 	case []interface{}:
@@ -274,9 +276,6 @@ func FromHTTP(tm map[string]interface{}) *ResponseData {
 		}
 
 	}
-
-	fmt.Printf("%T is type of complete    ", tm["complete"])
-
 	returnData := &ResponseData{
 		Complete:    uint(tm["complete"].(int)),
 		Incomplete:  uint(tm["incomplete"].(int)),
@@ -284,6 +283,5 @@ func FromHTTP(tm map[string]interface{}) *ResponseData {
 		MinInterval: uint(tm["min interval"].(int)),
 		Peers:       p,
 	}
-
 	return returnData
 }
