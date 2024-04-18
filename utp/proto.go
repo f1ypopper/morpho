@@ -68,12 +68,12 @@ type Packet struct {
 	payload                           []byte
 }
 
-func (p *Packet) toBytes() []byte {
+func (p *Packet) serialize() []byte {
 	panic("todo")
 }
 
-func (p *Packet) fromBytes([]byte) {
-
+func (p *Packet) deserialize([]byte) {
+	panic("todo")
 }
 
 func (p *Packet) len() uint32 {
