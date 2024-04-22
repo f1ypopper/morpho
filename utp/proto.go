@@ -1,9 +1,7 @@
-package main
+package utp
 
 import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
+	"errors"
 	"math/rand"
 	"net"
 	"time"
@@ -26,13 +24,14 @@ import (
 */
 
 const HEADER_LEN = 20
-const MAX_PACKET_LEN = 1480
+const MAX_PAYLOAD_LEN = 1004
 
 type ConnState int
 
 const (
 	CS_UNINITIALIZED ConnState = 0
 	CS_SYN_SENT
+	CS_CONNECTED
 )
 
 type UTPConnection struct {
@@ -40,44 +39,12 @@ type UTPConnection struct {
 	id_send       uint16   // send connection_id
 	id_recv       uint16   // recv connection_id
 	seq_nr        uint16
-	ack_nr        uint16
-	cur_window    uint16
+	ack_nr        uint16 //last acked message
+	cur_window    uint   //bytes in flight (sent but not acked)
 	max_wind_size uint32
 	their_wnd     uint32
 	state         ConnState
-}
-
-type PacketType uint32
-
-const (
-	ST_DATA  PacketType = 0
-	ST_FIN              = 1
-	ST_STATE            = 2
-	ST_RESET            = 3
-	ST_SYN              = 4
-)
-
-type Packet struct {
-	ptype                             PacketType
-	connection_id                     uint16
-	timestamp_microseconds            uint32
-	timestamp_difference_microseconds uint32
-	wnd_size                          uint32 //their advertised window size
-	seq_nr                            uint16
-	ack_nr                            uint16
-	payload                           []byte
-}
-
-func (p *Packet) serialize() []byte {
-	panic("todo")
-}
-
-func (p *Packet) deserialize([]byte) {
-	panic("todo")
-}
-
-func (p *Packet) len() uint32 {
-	return 20
+	readbuf       []byte //bytes recieved
 }
 
 func Dial(address string) (UTPConnection, error) {
@@ -86,7 +53,7 @@ func Dial(address string) (UTPConnection, error) {
 		return UTPConnection{}, nil
 	}
 	//TODO handshake
-	conn := UTPConnection{baseconn: baseconn, state: CS_UNINITIALIZED}
+	conn := UTPConnection{baseconn: baseconn, state: CS_UNINITIALIZED, readbuf: make([]byte, 0, 1000000)}
 	if err := conn.syn(); err != nil {
 		return UTPConnection{}, err
 	}
@@ -94,11 +61,29 @@ func Dial(address string) (UTPConnection, error) {
 }
 
 func (conn *UTPConnection) Write(b []byte) (int, error) {
-	return 0, nil
+	p := Packet{}
+	p.ptype = ST_DATA
+	p.connection_id = conn.id_send
+	p.seq_nr = conn.seq_nr
+	p.ack_nr = conn.ack_nr
+	p.timestamp_microseconds = uint32(time.Now().UnixMicro())
+	p.timestamp_difference_microseconds = 0
+	p.wnd_size = 1048576
+	p.payload = b
+	conn.send_packet(&p)
+	conn.seq_nr += 1
+	return len(b), nil
 }
 
 func (conn *UTPConnection) Read(b []byte) (int, error) {
-	return 0, nil
+	for len(b) > len(conn.readbuf) {
+		packet, err := conn.recv_packet()
+		if err != nil {
+			return 0, err
+		}
+		conn.process_packet(&packet)
+	}
+	return copy(b, conn.readbuf), nil
 }
 
 func (conn *UTPConnection) syn() error {
@@ -112,38 +97,68 @@ func (conn *UTPConnection) syn() error {
 	packet.ack_nr = 0
 	packet.seq_nr = conn.seq_nr
 	packet.timestamp_difference_microseconds = 0
+	packet.timestamp_microseconds = uint32(time.Now().UnixMicro())
 	conn.send_packet(&packet)
+	ack, err := conn.recv_packet()
+	if err != nil {
+		return err
+	}
+	conn.process_packet(&ack)
+	if conn.state != CS_CONNECTED {
+		return errors.New("failed syn-ack handshake")
+	}
+	conn.seq_nr += 1
 	return nil
+}
+
+func (conn *UTPConnection) process_packet(packet *Packet) error {
+	switch packet.ptype {
+	case ST_STATE:
+		{
+			if conn.state == CS_SYN_SENT {
+				conn.state = CS_CONNECTED
+				conn.ack_nr = packet.seq_nr - 1
+			}
+			if len(packet.payload) != 0 {
+				conn.ack_nr = packet.seq_nr - 1
+			}
+		}
+	case ST_DATA:
+		{
+			//if seq_nr is not conn.ack_nr+1 drop the packet (since we haven't created a priority queue for the ordering of packets)
+			conn.readbuf = append(conn.readbuf, packet.payload...)
+			conn.ack(packet.seq_nr)
+			conn.ack_nr = packet.seq_nr
+		}
+	}
+	return nil
+}
+
+func (conn *UTPConnection) ack(last_ack uint16) {
+	p := Packet{}
+	p.ptype = ST_STATE
+	p.connection_id = conn.id_send
+	p.seq_nr = conn.seq_nr
+	p.ack_nr = last_ack
+	p.timestamp_microseconds = uint32(time.Now().UnixMicro())
+	p.timestamp_difference_microseconds = 0
+	p.wnd_size = 1048576
+	conn.baseconn.Write(p.serialize())
 }
 
 func (conn *UTPConnection) send_packet(packet *Packet) {
 	if uint32(conn.cur_window)+packet.len() > min(conn.their_wnd, uint32(conn.cur_window)) {
-		//wait for ack messages
+		//wait for ack messages i.e wait for endpoint to process packets from its recive buffer
 	}
-	//pack into a single uint32
-	var first uint32 = 0
-	first |= uint32(packet.ptype << 28)
-	first |= uint32(1) << 24
-	first |= uint32(0) << 20
-	first |= uint32(packet.connection_id)
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, first)
-	binary.Write(buf, binary.BigEndian, uint32(time.Now().UnixMicro()))
-	binary.Write(buf, binary.BigEndian, uint32(0)) //timestamp_difference_microseconds
-	binary.Write(buf, binary.BigEndian, packet.wnd_size)
-	var seq_ack_nr uint32 = 0
-	seq_ack_nr |= uint32(packet.seq_nr)
-	seq_ack_nr |= uint32(packet.ack_nr)
-	binary.Write(buf, binary.BigEndian, seq_ack_nr)
-	conn.baseconn.Write(buf.Bytes())
-	res_buffer := make([]byte, 20)
-	conn.baseconn.Read(res_buffer)
-	fmt.Printf("BYTES RECIEVED: %x", res_buffer)
+	buf := packet.serialize()
+	conn.baseconn.Write(buf)
+	conn.cur_window += uint(len(buf))
 }
 
-func main() {
-	_, err := Dial("localhost:1111")
-	if err != nil {
-		fmt.Printf("CONNECTION ERR: %e\n", err)
-	}
+func (conn *UTPConnection) recv_packet() (Packet, error) {
+	buf := make([]byte, MAX_PAYLOAD_LEN)
+	conn.baseconn.Read(buf)
+	packet := Packet{}
+	packet.deserialize(buf)
+	return packet, nil
 }

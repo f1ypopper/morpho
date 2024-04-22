@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
-	"time"
 )
 
 func (ad *AnnounceData) ToBytes() []byte {
@@ -120,37 +119,36 @@ func ManageAnnounceList(aList []interface{}) []url.URL {
 func (aData *AnnounceData) ManageAnnounceTracker(m *MetaInfo, peerList *map[string]uint16) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	for {
-		for _, v := range m.AnnounceList {
-			wg.Add(1)
-			go func(aUrl *MetaInfo) ([]byte, error) {
-				defer wg.Done()
-				body, err := aData.ToHttp(m, v)
-				if err != nil {
-					return nil, err
+	//for {
+	for _, v := range m.AnnounceList {
+		wg.Add(1)
+		go func(aUrl *MetaInfo) ([]byte, error) {
+			defer wg.Done()
+			body, err := aData.ToHttp(m, v)
+			if err != nil {
+				return nil, err
+			}
+			t, _ := bencoding.Decode(string(body))
+			if tracker, ok := t.(map[string]interface{}); ok {
+				if err, ok := tracker["failure reason"]; ok {
+					return nil, errors.New(err.(string))
 				}
-				t, _ := bencoding.Decode(string(body))
-				if tracker, ok := t.(map[string]interface{}); ok {
-					fmt.Println("TRACKER ", tracker)
-					if err, ok := tracker["failure reason"]; ok {
-						return nil, errors.New(err.(string))
-					}
-					respData := FromHTTP(tracker)
-					mu.Lock()
-					for _, p := range respData.Peer {
-						(*peerList)[p.IP.To4().String()] = p.Port
-					}
-					fmt.Println(peerList)
-					mu.Unlock()
-					time.Sleep(time.Duration(respData.Interval) * time.Second)
+				respData := FromHTTP(tracker)
+				mu.Lock()
+				for _, p := range respData.Peer {
+					(*peerList)[p.IP.To4().String()] = p.Port
 				}
-				return body, nil
+				//fmt.Println(peerList)
+				mu.Unlock()
+				//time.Sleep(time.Duration(respData.Interval) * time.Second)
+			}
+			return body, nil
 
-			}(m)
+		}(m)
 
-		}
-		wg.Wait()
 	}
+	wg.Wait()
+	//}
 }
 
 func FromHTTP(tm map[string]interface{}) *ResponseData {

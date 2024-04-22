@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"morpho/bencoding"
+	"morpho/pwp"
 	"morpho/torrent"
 	"os"
 )
@@ -23,8 +24,19 @@ func init() {
 }
 
 func main() {
-	fmt.Println("ANNOUNCE LIST: ", meta_info.AnnounceList)
 	fmt.Printf("INFO HASH: %x\n", announceData.InfoHash)
 	var peerList = map[string]uint16{}
 	announceData.ManageAnnounceTracker(&meta_info, &peerList)
+	pwp.StartPeerManager(&peerList, &announceData)
 }
+
+//func main() {
+//	conn, err := utp.Dial("localhost:1111")
+//	if err != nil {
+//		fmt.Printf("CONNECTION ERR: %e\n", err)
+//	}
+//	conn.Write([]byte("Hello World\n"))
+//	buf := make([]byte, 10)
+//	conn.Read(buf)
+//	conn.Write([]byte("Hello World\n"))
+//}
