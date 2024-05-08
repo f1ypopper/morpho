@@ -3,6 +3,7 @@ package utp
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 )
 
 type PacketType uint32
@@ -63,4 +64,21 @@ func (packet *Packet) deserialize(buf []byte) {
 
 func (p *Packet) len() uint32 {
 	return 20 + uint32(len(p.payload))
+}
+
+func (p *Packet) to_str() string {
+	var ptype string
+	switch p.ptype {
+	case ST_DATA:
+		ptype = "ST_DATA"
+	case ST_STATE:
+		ptype = "ST_STATE"
+	case ST_FIN:
+		ptype = "ST_FIN"
+	case ST_RESET:
+		ptype = "ST_RESET"
+	case ST_SYN:
+		ptype = "ST_SYN"
+	}
+	return fmt.Sprintf("TYPE: %s ACK_NR: %d SEQ_NR: %d PAYLOAD: %s", ptype, p.ack_nr, p.seq_nr, p.payload)
 }

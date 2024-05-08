@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"morpho/bencoding"
-	"morpho/pwp"
 	"morpho/torrent"
+	"morpho/utp"
 	"os"
+	"time"
 )
 
 var (
@@ -23,20 +24,25 @@ func init() {
 
 }
 
-func main() {
-	fmt.Printf("INFO HASH: %x\n", announceData.InfoHash)
-	var peerList = map[string]uint16{}
-	announceData.ManageAnnounceTracker(&meta_info, &peerList)
-	pwp.StartPeerManager(&peerList, &announceData)
-}
-
 //func main() {
-//	conn, err := utp.Dial("localhost:1111")
-//	if err != nil {
-//		fmt.Printf("CONNECTION ERR: %e\n", err)
-//	}
-//	conn.Write([]byte("Hello World\n"))
-//	buf := make([]byte, 10)
-//	conn.Read(buf)
-//	conn.Write([]byte("Hello World\n"))
+//	fmt.Printf("INFO HASH: %x\n", announceData.InfoHash)
+//	var peerList = map[string]uint16{}
+//	announceData.ManageAnnounceTracker(&meta_info, &peerList)
+//	pwp.StartPeerManager(&peerList, &announceData)
 //}
+
+func main() {
+	conn, err := utp.Dial("localhost:1111")
+	if err != nil {
+		panic(err.Error())
+	}
+	conn.Write([]byte("Hello World\n"))
+	buf := make([]byte, 10)
+	conn.Read(buf)
+	fmt.Printf("READ %d BYTES: %s\n", len(buf), buf)
+	conn.Write([]byte("Bye World\n"))
+	buf = make([]byte, 5)
+	conn.Read(buf)
+	fmt.Printf("READ %d BYTES: %s\n", len(buf), buf)
+	time.Sleep(10000 * time.Second)
+}
