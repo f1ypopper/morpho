@@ -85,7 +85,7 @@ func StartPeerManager(peermap *map[string]uint16, adata *torrent.AnnounceData) {
 			if err != nil {
 				fmt.Println("ERROR IN PWP HANDSHAKE: ", err)
 			}
-			fmt.Printf("%s:%d HANDSHAKE: %v\n", ip, port, rbuf)
+			fmt.Printf("%s:%d HANDSHAKE: %s\n", ip, port, rbuf)
 			//conn.Handshake([]byte(adata.PeerID), adata.InfoHash)
 		}()
 	}

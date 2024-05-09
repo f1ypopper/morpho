@@ -89,7 +89,7 @@ func (conn *UTPConnection) Write(b []byte) (int, error) {
 		p.ack_nr = conn.ack_nr
 		p.timestamp_microseconds = uint32(time.Now().UnixMicro())
 		p.timestamp_difference_microseconds = 0
-		p.wnd_size = 1048576
+		p.wnd_size = uint32(conn.readbuf.Available())
 		p.payload = segment
 		conn.schan <- p
 		conn.seq_nr += 1
@@ -127,6 +127,7 @@ func (conn *UTPConnection) syn() error {
 	if err != nil {
 		return err
 	}
+	//fmt.Printf("RECV TIMESTAMP: %d\n", ack.timestamp_microseconds)
 	conn.process_packet(&ack)
 	if conn.state != CS_CONNECTED {
 		return errors.New("failed syn-ack handshake")
@@ -141,7 +142,7 @@ func (conn *UTPConnection) send_demon() {
 		select {
 		case p := <-conn.schan:
 			{
-				fmt.Printf("PACKET: %s\n", p.to_str())
+				//fmt.Printf("PACKET: %s\n", p.to_str())
 				conn.send_packet(&p)
 				if p.ptype == ST_DATA {
 					conn.in_flight[p.seq_nr] = p
@@ -168,7 +169,7 @@ func (conn *UTPConnection) recv_demon() {
 		if err != nil {
 			fmt.Printf("RECV PACKET ERROR: %s\n", err.Error())
 		}
-		fmt.Printf("RECV PACKET: %s\n", p.to_str())
+		//fmt.Printf("RECV PACKET: %s\n", p.to_str())
 		conn.process_packet(&p)
 	}
 }
@@ -210,7 +211,7 @@ func (conn *UTPConnection) ack(last_ack uint16) {
 	p.ack_nr = last_ack
 	p.timestamp_microseconds = uint32(time.Now().UnixMicro())
 	p.timestamp_difference_microseconds = 0
-	p.wnd_size = 1048576
+	p.wnd_size = uint32(conn.readbuf.Available())
 	//conn.baseconn.Write(p.serialize())
 	conn.schan <- p
 }
