@@ -81,11 +81,25 @@ func StartPeerManager(peermap *map[string]uint16, adata *torrent.AnnounceData) {
 				return
 			}
 			fmt.Printf("%s:%d CONNECTED\n", ip, port)
-			rbuf, err := conn.Handshake([]byte(adata.PeerID), adata.InfoHash)
+			_, err = conn.Handshake([]byte(adata.PeerID), adata.InfoHash)
 			if err != nil {
 				fmt.Println("ERROR IN PWP HANDSHAKE: ", err)
 			}
-			fmt.Printf("%s:%d HANDSHAKE: %s\n", ip, port, rbuf)
+			fmt.Printf("%s:%d HANDSHAKE\n", ip, port)
+			lb := make([]byte, 5)
+			conn.conn.Read(lb)
+			len, msg_id := binary.BigEndian.Uint32(lb[0:4]), lb[4]
+			fmt.Printf("LENGTH: %d MESSAGE ID: %d\n", len, msg_id)
+			if msg_id == 5 {
+				bitfield := make([]byte, len-1)
+				conn.conn.Read(bitfield)
+				fmt.Printf("BITFIELD: ")
+				for _, n := range bitfield {
+					fmt.Printf("%08b ", n) // prints 00000000 11111101
+				}
+				fmt.Println("")
+			}
+
 			//conn.Handshake([]byte(adata.PeerID), adata.InfoHash)
 		}()
 	}
