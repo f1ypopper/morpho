@@ -49,7 +49,7 @@ func StartPeerManager(pList *[]torrent.Peer, aData *torrent.AnnounceData) {
 			}
 			if bitfield != nil {
 				peer.bitfield = bitfield
-				peer.conn = connection
+				peer.utp = connection
 				peerManager.peers = append(peerManager.peers, peer)
 				fmt.Println(len(peerManager.peers))
 			}

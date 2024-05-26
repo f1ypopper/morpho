@@ -192,7 +192,7 @@ func (packet *Packet) SendPacket(conn net.Conn) {
 	conn.Write(buf)
 
 }
-func NewPeer(ipAddr string, handshake []byte) ([]byte, net.Conn, error) {
+func NewPeer(ipAddr string, handshake []byte) ([]byte, UTPConnection, error) {
 	var c UTPConnection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	timeout := time.Now().Add(10 * time.Second)
@@ -202,31 +202,31 @@ func NewPeer(ipAddr string, handshake []byte) ([]byte, net.Conn, error) {
 	c.baseConn, _ = InitConnection(ctx, ipAddr, 10)
 	if c.baseConn == nil {
 		fmt.Println("base conn is nil")
-		return nil, nil, fmt.Errorf("base conn is nil")
+		return nil, UTPConnection{}, fmt.Errorf("base conn is nil")
 	}
 	c.ip = ipAddr
 	err := c.Syn()
 	if err != nil {
-		return nil, nil, err
+		return nil, UTPConnection{}, err
 	}
 	bitfield, err := c.HandshakePacket(ctx, handshake)
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			fmt.Println("Handshake packet timed out")
-			return nil, nil, err
+			return nil, UTPConnection{}, err
 
 		} else {
 			fmt.Println("Error in handshake packet:", err)
-			return nil, nil, err
+			return nil, UTPConnection{}, err
 
 		}
 	}
 	if time.Now().After(timeout) {
 		fmt.Println("exiting timeout")
-		return nil, nil, err
+		return nil, UTPConnection{}, err
 	}
 	fmt.Println("BITFLIED", bitfield)
 
-	return bitfield, c.baseConn, nil
+	return bitfield, c, nil
 
 }

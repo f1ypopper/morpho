@@ -1,6 +1,8 @@
 package pwp
 
-import "net"
+import (
+	"morpho/utp"
+)
 
 type HandshakeSt struct {
 	Pstrlen  uint8
@@ -22,9 +24,10 @@ type PeerManager struct {
 	left       []byte
 }
 type PeerInfo struct {
-	conn       net.Conn
+	utp        utp.UTPConnection
 	bitfield   []byte
 	interested bool
+	choked     bool
 	busy       bool
 	done       chan bool
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -15,7 +16,20 @@ import (
 //	"strings"
 //
 // )
-func (c *UTPConnection) MakePacket(payloadData []byte) Packet {
+
+func SetConnection() UTPConnection {
+	var c UTPConnection
+	c.seqNr = 1
+	c.ackNr = 0
+	c.state = CS_CONNECTED
+	c.conn_id_recv = uint16(rand.Int())
+	c.conn_id_send = c.conn_id_recv + 1
+	return c
+
+}
+
+func (c *UTPConnection) BuildAndTransmitPacket(payloadData []byte) Packet {
+	// c := SetConnection()
 	var p Packet
 	p.ptype = 0
 	p.seq_nr = c.seqNr
@@ -25,13 +39,14 @@ func (c *UTPConnection) MakePacket(payloadData []byte) Packet {
 	p.timestamp_difference_microseconds = 0
 	p.wnd_size = 1048576
 	p.payload = payloadData
+	// send packet
+	p.SendPacket(c.baseConn)
 	return p
 }
 
 // handshake with retrieving bitfield
 func (c *UTPConnection) HandshakePacket(ctx context.Context, payloadData []byte) ([]byte, error) {
-	cPacket := c.MakePacket(payloadData)
-	cPacket.SendPacket(c.baseConn)
+	c.BuildAndTransmitPacket(payloadData)
 	timeout := time.Now().Add(10 * time.Second)
 	done := make(chan bool)
 
@@ -46,13 +61,9 @@ func (c *UTPConnection) HandshakePacket(ctx context.Context, payloadData []byte)
 			fmt.Println("Exiting due to context timeout")
 			return nil, ctx.Err()
 		default:
-			// Continue the loop
 			res_buf := make([]byte, 1024)
 			c.baseConn.SetReadDeadline(time.Now().Add(time.Second * 1))
 			n, err := c.baseConn.Read(res_buf)
-			// if <-done {
-			// 	return nil, nil
-			// }
 			if err != nil {
 				return nil, err
 			}
