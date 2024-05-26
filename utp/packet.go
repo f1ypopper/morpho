@@ -4,32 +4,12 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"net"
 	"strings"
 	"time"
 )
 
-// import (
-//
-//	"encoding/binary"
-//	"fmt"
-//	"strings"
-//
-// )
-
-func SetConnection() UTPConnection {
-	var c UTPConnection
-	c.seqNr = 1
-	c.ackNr = 0
-	c.state = CS_CONNECTED
-	c.conn_id_recv = uint16(rand.Int())
-	c.conn_id_send = c.conn_id_recv + 1
-	return c
-
-}
-
 func (c *UTPConnection) BuildAndTransmitPacket(payloadData []byte) Packet {
-	// c := SetConnection()
 	var p Packet
 	p.ptype = 0
 	p.seq_nr = c.seqNr
@@ -38,10 +18,17 @@ func (c *UTPConnection) BuildAndTransmitPacket(payloadData []byte) Packet {
 	p.timestamp_microseconds = uint32(time.Now().UnixMicro())
 	p.timestamp_difference_microseconds = 0
 	p.wnd_size = 1048576
-	p.payload = payloadData
+	p.Payload = payloadData
 	// send packet
-	p.SendPacket(c.baseConn)
+	p.SendPacket(c.BaseConn)
 	return p
+}
+
+// Send the packet by writing to the connection.
+func (packet *Packet) SendPacket(conn net.Conn) {
+	buf := packet.serialize()
+	conn.Write(buf)
+
 }
 
 // handshake with retrieving bitfield
@@ -56,13 +43,13 @@ func (c *UTPConnection) HandshakePacket(ctx context.Context, payloadData []byte)
 			return nil, ctx.Err()
 		default:
 			res_buf := make([]byte, 1024)
-			c.baseConn.SetReadDeadline(time.Now().Add(time.Second * 1))
-			n, err := c.baseConn.Read(res_buf)
+			// c.BaseConn.SetReadDeadline(time.Now().Add(time.Second * 4))
+			n, err := c.BaseConn.Read(res_buf)
 			if err != nil {
 				return nil, err
 			}
 			packet := deserialize(res_buf[:n])
-			if strings.Contains(string(packet.payload), "BitTorrent protocol") {
+			if strings.Contains(string(packet.Payload), "BitTorrent protocol") {
 				peers = append(peers, c.ip)
 				len, msg_id := binary.BigEndian.Uint32(res_buf[88:92]), res_buf[92]
 				if msg_id == 5 {

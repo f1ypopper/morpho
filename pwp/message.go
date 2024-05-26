@@ -9,13 +9,6 @@ import (
 // func choke and unchoke as well handle it
 // request: <len=0013><id=6><index><begin><length>
 
-// The request message is fixed length, and is used to request a block. The payload contains the following information:
-
-//     index: integer specifying the zero-based piece index
-//     begin: integer specifying the zero-based byte offset within the piece
-//     length: integer specifying the requested length.
-
-// availablePiece
 type Id int
 
 const (
@@ -36,30 +29,6 @@ type Message struct {
 	Payload []byte
 }
 
-func (p *PeerInfo) RequestMessage(index int, metaInfo *torrent.MetaInfo) {
-	var m Message
-	peiceSize := metaInfo.Info.PieceLength
-	totalsize := metaInfo.Info.Files[0].Length
-	MaxPeiceSize := 16384 // 16 KB
-	begin := index * int(peiceSize)
-	end := begin + int(totalsize)
-	m.ID = Request
-	m.Length = 13
-	for i := 0; i < end/MaxPeiceSize; i++ {
-		// craft payload message
-		payload := make([]byte, 8)
-
-		binary.BigEndian.PutUint32(payload[0:], uint32(index))
-		binary.BigEndian.PutUint16(payload[4:], uint16(begin))
-		binary.BigEndian.PutUint16(payload[4:], uint16(MaxPeiceSize))
-		m.Payload = append(m.Payload, payload...)
-
-		begin += MaxPeiceSize
-		end += MaxPeiceSize
-
-	}
-}
-
 func (p *PeerInfo) MakeMessage(m Message) {
 	req := make([]byte, m.Length)
 	switch m.ID {
@@ -71,4 +40,40 @@ func (p *PeerInfo) MakeMessage(m Message) {
 
 	}
 
+}
+
+func (p *PeerInfo) RequestMessage(index int, metaInfo *torrent.MetaInfo) {
+
+	var m Message
+	peiceSize := metaInfo.Info.PieceLength
+	// totalsize := metaInfo.Info.Files[0].Length
+	MaxPeiceSize := 16384 // 16 KB
+	begin := index * int(peiceSize)
+	end := begin + int(peiceSize)
+	for i := 0; i < end/MaxPeiceSize; i++ {
+		req := make([]byte, 13)
+		binary.BigEndian.PutUint32(req[0:], uint32(13))
+		req = append(req, byte(m.ID))
+		// craft payload message
+		payload := make([]byte, 12)
+
+		binary.BigEndian.PutUint32(payload[0:], uint32(index))
+		binary.BigEndian.PutUint32(payload[4:], uint32(begin))
+		binary.BigEndian.PutUint32(payload[8:], uint32(MaxPeiceSize))
+		req = append(req, payload...)
+		p.utp.BuildAndTransmitPacket(req)
+
+		begin += MaxPeiceSize
+		end += MaxPeiceSize
+
+	}
+}
+
+// msg can be either choke unchoke interested notinterest
+func (p *PeerInfo) PwpMessage(msg Id) {
+	mes := make([]byte, 5)
+
+	binary.BigEndian.PutUint32(mes[0:], uint32(1))
+	mes = append(mes, byte(msg))
+	p.utp.BuildAndTransmitPacket(mes)
 }

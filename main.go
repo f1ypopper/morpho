@@ -6,11 +6,13 @@ import (
 	"morpho/pwp"
 	"morpho/torrent"
 	"os"
+	"sync"
+	"time"
 )
 
 var (
 	announceData torrent.AnnounceData
-	meta_info    torrent.MetaInfo
+	Meta_info    torrent.MetaInfo
 )
 
 func init() {
@@ -18,23 +20,31 @@ func init() {
 	source := string(data)
 	bval, _ := bencoding.Decode(source)
 	m := bval.(map[string]any)
-	meta_info, _ = torrent.LoadTorrent(bval)
-	for index, hash := range meta_info.Info.Pieces {
+	Meta_info, _ = torrent.LoadTorrent(bval)
+	for index, hash := range Meta_info.Info.Pieces {
 		fmt.Printf("HASH: %x INDEX: %d\n", hash, index)
 
 	}
-	fmt.Println(meta_info.Info.PieceLength, meta_info.Info.Files[0].Length)
-	announceData = torrent.CreateAnnounceData(&meta_info, m)
+	fmt.Println(Meta_info.Info.PieceLength, Meta_info.Info.Files[0].Length)
+	announceData = torrent.CreateAnnounceData(&Meta_info, m)
 
 }
 
 func main() {
-	// fmt.Println("ANNOUNCE LIST: ", meta_info.AnnounceList)
-	// fmt.Printf("INFO HASH: %x\n", announceData.InfoHash)
 	var peerList []torrent.Peer
+	var wg sync.WaitGroup
 
-	announceData.ManageAnnounceTracker(&meta_info, &peerList)
-	fmt.Println("reading trackers is complete")
-	pwp.StartPeerManager(&peerList, &announceData)
+	announceData.ManageAnnounceTracker(&Meta_info, &peerList)
+	wg.Add(1)
+	go func() {
+		time.Sleep(20 * time.Second)
+		pwp.PeerManagers.HandlePeer(&Meta_info)
+		defer wg.Done()
+
+	}()
+	wg.Add(1)
+	go pwp.StartPeerManager(&peerList, &announceData)
+	wg.Wait()
+
 	fmt.Println("finishing")
 }

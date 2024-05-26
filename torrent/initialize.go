@@ -41,6 +41,7 @@ func LoadTorrent(bval any) (MetaInfo, error) {
 	return metainfo, nil
 }
 
+// optimize this by doing unmarshalling
 func loadInfo(bval any) (TorrentInfo, error) {
 	m, _ := bval.(map[string]any)
 	tinfo := TorrentInfo{}

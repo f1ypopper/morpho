@@ -9,14 +9,51 @@ import (
 	"time"
 )
 
-var peerManager PeerManager
+var PeerManagers PeerManager
+var Msg chan int
 
-func (p *PeerManager) HandlePeer() {
-	// TODO Start handshake
-	// TODO create channel with peer manager and data manager
-	// TODO if bitfield contact peer manager
+func (p *PeerManager) HandlePeer(metaInfo *torrent.MetaInfo) {
 	// TODO else make request messages
 	// TODO
+	// each peer have go routines to handle incoming traffic
+	for index, peer := range p.peers {
+		fmt.Println("peers are :", peer.bitfield, index)
+
+		peer.PwpMessage(Unchoke)
+		peer.PwpMessage(Interested)
+		peer.RequestMessage(0, metaInfo)
+
+		res_buf := make([]byte, 10000)
+		n, err := peer.utp.BaseConn.Read(res_buf)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(res_buf[:n])
+		peer.HandleIncomingMessage(res_buf[:n])
+
+	}
+
+}
+
+func (p *PeerInfo) HandleIncomingMessage(msg []byte) {
+	packet := p.utp.ProcessReceivedPacket(msg)
+	fmt.Println(packet)
+	if len(packet.Payload) > 0 {
+
+		msgId := packet.Payload[4]
+		switch Id(msgId) {
+		case Choke:
+			p.choked = true
+		case Interested:
+			p.interested = true
+		case Peice:
+			fmt.Println(packet.Payload)
+			// parse teh peice
+		default:
+			fmt.Println(packet.Payload)
+
+		}
+	}
 
 }
 
@@ -50,8 +87,9 @@ func StartPeerManager(pList *[]torrent.Peer, aData *torrent.AnnounceData) {
 			if bitfield != nil {
 				peer.bitfield = bitfield
 				peer.utp = connection
-				peerManager.peers = append(peerManager.peers, peer)
-				fmt.Println(len(peerManager.peers))
+				PeerManagers.peers = append(PeerManagers.peers, peer)
+				fmt.Println(len(PeerManagers.peers))
+				done <- true
 			}
 
 		}(ipAdd)
