@@ -48,12 +48,6 @@ func (c *UTPConnection) BuildAndTransmitPacket(payloadData []byte) Packet {
 func (c *UTPConnection) HandshakePacket(ctx context.Context, payloadData []byte) ([]byte, error) {
 	c.BuildAndTransmitPacket(payloadData)
 	timeout := time.Now().Add(10 * time.Second)
-	done := make(chan bool)
-
-	go func() {
-		time.Sleep(time.Second * 10)
-		done <- true
-	}()
 
 	for time.Now().Before(timeout) {
 		select {
