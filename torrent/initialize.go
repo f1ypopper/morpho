@@ -45,7 +45,13 @@ func loadInfo(bval any) (TorrentInfo, error) {
 	m, _ := bval.(map[string]any)
 	tinfo := TorrentInfo{}
 	tinfo.PieceLength = uint(m["piece length"].(int))
-	tinfo.Pieces = m["pieces"].(string)
+	hashes := []byte(m["pieces"].(string))
+	num := len(m["pieces"].(string)) / 20
+	for i := 0; i < num; i++ {
+		var arr [20]byte
+		copy(arr[:], hashes[i*20:(i+1)*20])
+		tinfo.Pieces = append(tinfo.Pieces, arr)
+	}
 	files := []File{}
 	if files_dict, ok := m["files"]; ok {
 		//multi-file mode

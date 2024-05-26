@@ -19,7 +19,11 @@ func init() {
 	bval, _ := bencoding.Decode(source)
 	m := bval.(map[string]any)
 	meta_info, _ = torrent.LoadTorrent(bval)
-	fmt.Println(meta_info.Info.PieceLength, "  ", meta_info.Info.Files[0].Length)
+	for index, hash := range meta_info.Info.Pieces {
+		fmt.Printf("HASH: %x INDEX: %d\n", hash, index)
+
+	}
+	fmt.Println(meta_info.Info.PieceLength, meta_info.Info.Files[0].Length)
 	announceData = torrent.CreateAnnounceData(&meta_info, m)
 
 }
@@ -32,4 +36,5 @@ func main() {
 	announceData.ManageAnnounceTracker(&meta_info, &peerList)
 	fmt.Println("reading trackers is complete")
 	pwp.StartPeerManager(&peerList, &announceData)
+	fmt.Println("finishing")
 }

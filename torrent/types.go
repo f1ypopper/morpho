@@ -14,7 +14,7 @@ type MetaInfo struct {
 
 type TorrentInfo struct {
 	PieceLength uint
-	Pieces      string
+	Pieces      [][20]byte
 	Files       []File
 }
 

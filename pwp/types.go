@@ -17,12 +17,14 @@ type PieceInfo struct {
 
 }
 type PeerManager struct {
+	peers      []PeerInfo
+	Downloaded []byte
+	left       []byte
 }
 type PeerInfo struct {
-	ip              string
-	conn            net.Conn
-	interested      bool
-	availablePieces uint
-	busy            bool
-	done            chan bool
+	conn       net.Conn
+	bitfield   []byte
+	interested bool
+	busy       bool
+	done       chan bool
 }

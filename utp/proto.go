@@ -2,12 +2,12 @@ package utp
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -32,8 +32,6 @@ type UTPConnection struct {
 	ackNr        uint16
 	conn_id_recv uint16
 	conn_id_send uint16
-	rbuflock     *sync.RWMutex
-	readbuf      *bytes.Buffer
 }
 type Packet struct {
 	ptype                             uint16
@@ -122,17 +120,26 @@ func (c *UTPConnection) CheckAcked(res []byte) {
 }
 
 // INITIALIZE CONNECTION
-func InitConnection(ip string, timeout time.Duration) net.Conn {
+func InitConnection(ctx context.Context, ip string, timeout time.Duration) (net.Conn, error) {
 
 	conn, err := net.DialTimeout("udp", ip, timeout*time.Second)
 	if err != nil {
 		fmt.Println("net dial error ")
+		return nil, err
 	}
-	return conn
+	select {
+	case <-ctx.Done():
+		fmt.Println("Exiting due to context timeout")
+		return nil, err
+	default:
+		// Continue the loop
+
+	}
+	return conn, nil
 
 }
 
-func (c *UTPConnection) Syn() {
+func (c *UTPConnection) Syn() error {
 	c.seqNr = 1
 	c.ackNr = 0
 	c.state = CS_SYN_SENT
@@ -149,13 +156,19 @@ func (c *UTPConnection) Syn() {
 	p.wnd_size = 0
 	p.SendPacket(c.baseConn)
 	res_buf := make([]byte, 1024)
-	n, _ := c.baseConn.Read(res_buf)
-	time.Sleep(time.Second)
+	n, err := c.baseConn.Read(res_buf)
+	if err != nil {
+		fmt.Println("error in syn packet:", err)
+		return err
+
+	}
 
 	if n > 0 {
 		c.CheckAcked(res_buf[:n])
 
 	}
+
+	return nil
 
 }
 func (c *UTPConnection) Ack() {
@@ -173,90 +186,47 @@ func (c *UTPConnection) Ack() {
 
 }
 
-// handshake with retrieving bitfield
-func (c *UTPConnection) HandshakePacket(payloadData []byte) {
-	var p Packet
-	p.ptype = 0
-	p.seq_nr = c.seqNr
-	p.ack_nr = c.ackNr
-	p.connection_id = c.conn_id_send
-	p.timestamp_microseconds = uint32(time.Now().UnixMicro())
-	p.timestamp_difference_microseconds = 0
-	p.wnd_size = 1048576
-	p.payload = payloadData
-	p.SendPacket(c.baseConn)
-
-	for {
-		res_buf := make([]byte, 250)
-		n, err := c.baseConn.Read(res_buf)
-		if err != nil {
-			break
-		}
-		packet := deserialize(res_buf[:n])
-		if strings.Contains(string(packet.payload), "BitTorrent protocol") {
-			peers = append(peers, c.ip)
-			len, msg_id := binary.BigEndian.Uint32(res_buf[88:92]), res_buf[92]
-			if msg_id == 5 {
-				bitfield := res_buf[93 : 92+len]
-				fmt.Printf("LENGTH: %d MESSAGE ID: %d \n", len, msg_id)
-				fmt.Println("BITFIELD:  ")
-				for _, n := range bitfield {
-					fmt.Printf("%08b ", n)
-
-				}
-				fmt.Println("rest is ", res_buf[92+len:])
-			}
-
-			break
-		}
-
-	}
-}
-
-type messageID uint8
-
-const (
-	MsgChoke         messageID = 0
-	MsgUnchoke       messageID = 1
-	MsgInterested    messageID = 2
-	MsgNotInterested messageID = 3
-	MsgHave          messageID = 4
-	MsgBitfield      messageID = 5
-	MsgRequest       messageID = 6
-	MsgPiece         messageID = 7
-	MsgCancel        messageID = 8
-)
-
-// Message stores ID and payload of a message
-type Message struct {
-	ID      messageID
-	Payload []byte
-}
-
-func (m *Message) message() []byte {
-	if m == nil {
-		return make([]byte, 235)
-	}
-	length := uint32(len(m.Payload) + 1) // +1 for id
-	buf := make([]byte, 4+length)
-	binary.BigEndian.PutUint32(buf[0:4], length)
-	buf[4] = byte(m.ID)
-	copy(buf[5:], m.Payload)
-	fmt.Println(buf)
-	return buf
-
-}
-
 // Send the packet by writing to the connection.
 func (packet *Packet) SendPacket(conn net.Conn) {
 	buf := packet.serialize()
 	conn.Write(buf)
 
 }
-func Send(ipAddr string, handshake []byte) {
+func NewPeer(ipAddr string, handshake []byte) ([]byte, net.Conn, error) {
 	var c UTPConnection
-	c.baseConn = InitConnection(ipAddr, 1000)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout := time.Now().Add(10 * time.Second)
+
+	defer cancel()
+	fmt.Println("conntecting to ", ipAddr)
+	c.baseConn, _ = InitConnection(ctx, ipAddr, 10)
+	if c.baseConn == nil {
+		fmt.Println("base conn is nil")
+		return nil, nil, fmt.Errorf("base conn is nil")
+	}
 	c.ip = ipAddr
-	c.Syn()
-	c.HandshakePacket(handshake)
+	err := c.Syn()
+	if err != nil {
+		return nil, nil, err
+	}
+	bitfield, err := c.HandshakePacket(ctx, handshake)
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			fmt.Println("Handshake packet timed out")
+			return nil, nil, err
+
+		} else {
+			fmt.Println("Error in handshake packet:", err)
+			return nil, nil, err
+
+		}
+	}
+	if time.Now().After(timeout) {
+		fmt.Println("exiting timeout")
+		return nil, nil, err
+	}
+	fmt.Println("BITFLIED", bitfield)
+
+	return bitfield, c.baseConn, nil
+
 }
